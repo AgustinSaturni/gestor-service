@@ -2,14 +2,15 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import pika
 import json
+import os
 from contextlib import asynccontextmanager
 
 # Configuración de RabbitMQ
-RABBITMQ_HOST = "localhost"
-RABBITMQ_PORT = 5672
-RABBITMQ_USER = "admin"
-RABBITMQ_PASSWORD = "admin"
-RABBITMQ_QUEUE = "series_queue"
+RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
+RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
+RABBITMQ_USER = os.getenv("RABBITMQ_USER", "admin")
+RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "admin")
+RABBITMQ_QUEUE = os.getenv("RABBITMQ_QUEUE", "series_queue")
 
 # Variable global para la conexión
 rabbitmq_connection = None
