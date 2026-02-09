@@ -1,25 +1,34 @@
 from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
 from service.rabbitmq_service import RabbitMQService
-from controller.serie_controller import router as serie_router, set_rabbitmq_service
+from service.database_service import DatabaseService
+from repository.paciente_repository import PacienteRepository
+from controller.serie_controller import router as serie_router, set_rabbitmq_service, set_paciente_repository
 from controller.pacs_controller import router as pacs_router
 
-# Instancia global del servicio
+# Instancias globales de los servicios
 rabbitmq_service = RabbitMQService()
+database_service = DatabaseService()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Conectar a RabbitMQ
+    # Startup: Conectar a RabbitMQ y PostgreSQL
     rabbitmq_service.connect()
+    database_service.connect()
 
-    # Inyectar servicio en el controlador
+    # Crear repositorio
+    paciente_repository = PacienteRepository(database_service)
+
+    # Inyectar servicios en los controladores
     set_rabbitmq_service(rabbitmq_service)
+    set_paciente_repository(paciente_repository)
 
     yield
 
-    # Shutdown: Cerrar conexión
+    # Shutdown: Cerrar conexiones
     rabbitmq_service.disconnect()
+    database_service.disconnect()
 
 
 app = FastAPI(
@@ -46,17 +55,22 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check del servicio y conexión a RabbitMQ"""
+    """Health check del servicio, RabbitMQ y PostgreSQL"""
     try:
-        if rabbitmq_service.is_connected():
+        rabbitmq_status = "connected" if rabbitmq_service.is_connected() else "disconnected"
+        db_status = "connected" if database_service.is_connected() else "disconnected"
+
+        if rabbitmq_status == "connected" and db_status == "connected":
             return {
                 "status": "healthy",
-                "rabbitmq": "connected"
+                "rabbitmq": rabbitmq_status,
+                "database": db_status
             }
         else:
             return {
                 "status": "unhealthy",
-                "rabbitmq": "disconnected"
+                "rabbitmq": rabbitmq_status,
+                "database": db_status
             }
     except Exception as e:
         raise HTTPException(
