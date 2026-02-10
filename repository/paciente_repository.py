@@ -13,11 +13,12 @@ class PacienteRepository:
 
     def insert_or_update(self, paciente: Paciente) -> Paciente:
         """
-        Inserta o actualiza un paciente en la base de datos.
+        Inserta un paciente en la base de datos si no existe.
+        Si ya existe, retorna el ID existente sin hacer cambios.
         Retorna el objeto Paciente con el ID asignado.
 
         Args:
-            paciente: Objeto Paciente a insertar/actualizar
+            paciente: Objeto Paciente a insertar
 
         Returns:
             Paciente con el ID asignado por la base de datos
@@ -30,21 +31,11 @@ class PacienteRepository:
             connection = self.database_service.get_connection()
             cursor = connection.cursor()
 
-            query = """
-                INSERT INTO paciente (patient_id, nombre, apellido)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (patient_id)
-                DO UPDATE SET
-                    nombre = EXCLUDED.nombre,
-                    apellido = EXCLUDED.apellido
-                RETURNING id;
-            """
-
-            cursor.execute(query, (
-                paciente.patient_id,
-                paciente.nombre,
-                paciente.apellido
-            ))
+            # Llamar al stored procedure
+            cursor.execute(
+                "SELECT upsert_paciente(%s, %s, %s)",
+                (paciente.patient_id, paciente.nombre, paciente.apellido)
+            )
 
             # Obtener el ID retornado
             result = cursor.fetchone()
@@ -53,13 +44,13 @@ class PacienteRepository:
             connection.commit()
             cursor.close()
 
-            logger.info(f"Paciente guardado exitosamente: {paciente}")
+            logger.info(f"Paciente procesado exitosamente: {paciente}")
             return paciente
 
         except Exception as e:
             if connection:
                 connection.rollback()
-            logger.error(f"Error al guardar paciente: {e}")
+            logger.error(f"Error al procesar paciente: {e}")
             raise
 
         finally:
