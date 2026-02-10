@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from contextlib import asynccontextmanager
+import os
 from service.rabbitmq_service import RabbitMQService
 from service.database_service import DatabaseService
 from repository.paciente_repository import PacienteRepository
@@ -8,7 +9,13 @@ from controller.pacs_controller import router as pacs_router
 
 # Instancias globales de los servicios
 rabbitmq_service = RabbitMQService()
-database_service = DatabaseService()
+database_service = DatabaseService(
+    host=os.getenv("DB_HOST", "localhost"),
+    port=int(os.getenv("DB_PORT", "5432")),
+    database=os.getenv("DB_NAME", "hippal"),
+    user=os.getenv("DB_USER", "admin"),
+    password=os.getenv("DB_PASSWORD", "admin")
+)
 
 
 @asynccontextmanager
@@ -42,15 +49,6 @@ app = FastAPI(
 app.include_router(serie_router)
 app.include_router(pacs_router)
 
-
-@app.get("/")
-async def root():
-    """Endpoint de verificación de estado del servicio"""
-    return {
-        "service": "gestor-service",
-        "status": "running",
-        "rabbitmq": "connected"
-    }
 
 
 @app.get("/health")
