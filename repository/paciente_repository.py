@@ -33,8 +33,8 @@ class PacienteRepository:
 
             # Llamar al stored procedure
             cursor.execute(
-                "SELECT upsert_paciente(%s, %s, %s)",
-                (paciente.patient_id, paciente.nombre, paciente.apellido)
+                "SELECT upsert_paciente(%s, %s)",
+                (paciente.patient_id, paciente.nombre)
             )
 
             # Obtener el ID retornado

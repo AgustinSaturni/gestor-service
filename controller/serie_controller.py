@@ -29,7 +29,6 @@ class SerieRequest(BaseModel):
     serie: str
     patient_id: str
     nombre: str
-    apellido: str
     angulos: Optional[List[str]] = None
 
 
@@ -48,8 +47,7 @@ async def publish_serie(request: SerieRequest):
         # Crear objeto Paciente
         paciente = Paciente(
             patient_id=request.patient_id,
-            nombre=request.nombre,
-            apellido=request.apellido
+            nombre=request.nombre
         )
 
         # Guardar paciente en la base de datos
