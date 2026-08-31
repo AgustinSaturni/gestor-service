@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from typing import List, Optional
 from service.rabbitmq_service import RabbitMQService
 from repository.paciente_repository import PacienteRepository
 from models.paciente import Paciente
@@ -29,6 +30,7 @@ class SerieRequest(BaseModel):
     patient_id: str
     nombre: str
     apellido: str
+    angulos: Optional[List[str]] = None
 
 
 @router.post("", status_code=201)
@@ -54,7 +56,7 @@ async def publish_serie(request: SerieRequest):
         paciente_guardado = paciente_repository.insert_or_update(paciente)
 
         # Preparar mensaje para RabbitMQ
-        message = {"serie": request.serie}
+        message = {"serie": request.serie, "angulos": request.angulos}
 
         # Publicar mensaje usando el servicio
         success = rabbitmq_service.publish_message(message)
