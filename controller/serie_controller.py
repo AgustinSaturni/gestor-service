@@ -75,7 +75,7 @@ async def publish_serie(request: SerieRequest):
         estudio_guardado = estudio_repository.insert(estudio)
 
         # Preparar mensaje para RabbitMQ
-        message = {"serie": request.serie, "angulos": request.angulos}
+        message = {"serie": request.serie, "angulos": request.angulos, "estudio_id": estudio_guardado.id}
 
         # Publicar mensaje usando el servicio
         success = rabbitmq_service.publish_message(message)
