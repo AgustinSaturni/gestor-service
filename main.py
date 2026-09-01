@@ -4,7 +4,9 @@ import os
 from service.rabbitmq_service import RabbitMQService
 from service.database_service import DatabaseService
 from repository.paciente_repository import PacienteRepository
-from controller.serie_controller import router as serie_router, set_rabbitmq_service, set_paciente_repository
+from repository.estudio_repository import EstudioRepository
+from controller.serie_controller import router as serie_router, set_rabbitmq_service, set_paciente_repository, set_estudio_repository
+from controller.estudio_controller import router as estudio_router, set_estudio_repository as set_estudio_repository_controller
 from controller.pacs_controller import router as pacs_router
 
 # Instancias globales de los servicios
@@ -24,12 +26,15 @@ async def lifespan(app: FastAPI):
     rabbitmq_service.connect()
     database_service.connect()
 
-    # Crear repositorio
+    # Crear repositorios
     paciente_repository = PacienteRepository(database_service)
+    estudio_repository = EstudioRepository(database_service)
 
     # Inyectar servicios en los controladores
     set_rabbitmq_service(rabbitmq_service)
     set_paciente_repository(paciente_repository)
+    set_estudio_repository(estudio_repository)
+    set_estudio_repository_controller(estudio_repository)
 
     yield
 
@@ -48,6 +53,7 @@ app = FastAPI(
 # Registrar rutas de los controladores
 app.include_router(serie_router)
 app.include_router(pacs_router)
+app.include_router(estudio_router)
 
 
 
