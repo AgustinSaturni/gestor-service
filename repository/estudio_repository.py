@@ -66,7 +66,7 @@ class EstudioRepository:
             cursor = connection.cursor()
 
             cursor.execute(
-                "SELECT estudio_id, patient_id, paciente, estado, id_serie, descripcion, instancias FROM v_estudios WHERE patient_id = %s",
+                "SELECT estudio_id, patient_id, paciente, estado, id_serie, descripcion, instancias, created_at FROM v_estudios WHERE patient_id = %s",
                 (patient_id,)
             )
 
