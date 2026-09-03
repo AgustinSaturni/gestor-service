@@ -3,12 +3,13 @@ from contextlib import asynccontextmanager
 import os
 from service.rabbitmq_service import RabbitMQService
 from service.database_service import DatabaseService
+from service.minio_service import MinioService
 from repository.paciente_repository import PacienteRepository
 from repository.estudio_repository import EstudioRepository
 from repository.medicion_repository import MedicionRepository
 from controller.serie_controller import router as serie_router, set_rabbitmq_service, set_paciente_repository, set_estudio_repository
 from controller.estudio_controller import router as estudio_router, set_estudio_repository as set_estudio_repository_controller
-from controller.medicion_controller import router as medicion_router, set_medicion_repository
+from controller.medicion_controller import router as medicion_router, set_medicion_repository, set_minio_service
 from controller.pacs_controller import router as pacs_router
 
 # Instancias globales de los servicios
@@ -21,12 +22,21 @@ database_service = DatabaseService(
     password=os.getenv("DB_PASSWORD", "admin")
 )
 
+minio_service = MinioService(
+    endpoint=os.getenv("MINIO_ENDPOINT", "localhost:9000"),
+    access_key=os.getenv("MINIO_ACCESS_KEY", "admin"),
+    secret_key=os.getenv("MINIO_SECRET_KEY", "admin123"),
+    bucket=os.getenv("MINIO_BUCKET", "hippal"),
+    public_endpoint=os.getenv("MINIO_PUBLIC_ENDPOINT")
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Conectar a RabbitMQ y PostgreSQL
     rabbitmq_service.connect()
     database_service.connect()
+    minio_service.connect()
 
     # Crear repositorios
     paciente_repository = PacienteRepository(database_service)
@@ -39,6 +49,7 @@ async def lifespan(app: FastAPI):
     set_estudio_repository(estudio_repository)
     set_estudio_repository_controller(estudio_repository)
     set_medicion_repository(medicion_repository)
+    set_minio_service(minio_service)
 
     yield
 
