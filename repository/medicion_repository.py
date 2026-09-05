@@ -26,7 +26,7 @@ class MedicionRepository:
             cursor = connection.cursor()
 
             cursor.execute(
-                "SELECT id, estudio_id, resultados, correcciones, created_at FROM medicion WHERE estudio_id = %s",
+                "SELECT id, estudio_id, resultados, created_at FROM medicion WHERE estudio_id = %s",
                 (estudio_id,)
             )
 
@@ -38,8 +38,7 @@ class MedicionRepository:
                     "id": row[0],
                     "estudio_id": row[1],
                     "resultados": row[2],
-                    "correcciones": row[3],
-                    "created_at": row[4].isoformat() if row[4] else None
+                    "created_at": row[3].isoformat() if row[3] else None
                 }
             return None
 
@@ -51,13 +50,13 @@ class MedicionRepository:
             if connection:
                 self.database_service.return_connection(connection)
 
-    def save_correcciones(self, estudio_id: int, correcciones: dict) -> None:
+    def update_resultados(self, estudio_id: int, resultados: dict) -> None:
         """
-        Guarda o reemplaza las correcciones manuales de un estudio.
+        Reemplaza los resultados de un estudio con los valores corregidos por el usuario.
 
         Args:
             estudio_id: ID del estudio
-            correcciones: Dict con los valores corregidos (misma estructura que resultados)
+            resultados: Dict completo de resultados con correcciones aplicadas
         """
         import json
         connection = None
@@ -66,8 +65,8 @@ class MedicionRepository:
             cursor = connection.cursor()
 
             cursor.execute(
-                "UPDATE medicion SET correcciones = %s WHERE estudio_id = %s",
-                (json.dumps(correcciones), estudio_id)
+                "UPDATE medicion SET resultados = %s WHERE estudio_id = %s",
+                (json.dumps(resultados), estudio_id)
             )
 
             if cursor.rowcount == 0:
@@ -75,12 +74,12 @@ class MedicionRepository:
 
             connection.commit()
             cursor.close()
-            logger.info(f"Correcciones guardadas para estudio {estudio_id}")
+            logger.info(f"Resultados actualizados para estudio {estudio_id}")
 
         except Exception as e:
             if connection:
                 connection.rollback()
-            logger.error(f"Error al guardar correcciones del estudio {estudio_id}: {e}")
+            logger.error(f"Error al actualizar resultados del estudio {estudio_id}: {e}")
             raise
 
         finally:

@@ -45,27 +45,26 @@ async def get_medicion_by_estudio(estudio_id: int):
         )
 
 
-class CorreccionesPayload(BaseModel):
-    correcciones: dict[str, Any]
+class ResultadosPayload(BaseModel):
+    resultados: dict[str, Any]
 
 
 @router.patch("/{estudio_id}")
-async def save_correcciones(estudio_id: int, payload: CorreccionesPayload):
+async def update_resultados(estudio_id: int, payload: ResultadosPayload):
     """
-    Guarda o reemplaza las correcciones manuales de los ángulos de un estudio.
-    Las correcciones siguen la misma estructura que 'resultados' pero solo
-    incluyen los campos que el usuario corrigió.
+    Reemplaza los resultados de un estudio con los valores corregidos por el usuario.
+    El frontend envía el dict completo de resultados con las correcciones ya aplicadas.
     """
     try:
-        medicion_repository.save_correcciones(estudio_id, payload.correcciones)
-        return {"message": f"Correcciones guardadas para estudio {estudio_id}"}
+        medicion_repository.update_resultados(estudio_id, payload.resultados)
+        return {"message": f"Resultados actualizados para estudio {estudio_id}"}
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Error al guardar correcciones: {str(e)}"
+            detail=f"Error al actualizar resultados: {str(e)}"
         )
 
 
