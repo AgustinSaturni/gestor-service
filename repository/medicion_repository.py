@@ -26,7 +26,7 @@ class MedicionRepository:
             cursor = connection.cursor()
 
             cursor.execute(
-                "SELECT id, estudio_id, resultados, created_at FROM medicion WHERE estudio_id = %s",
+                "SELECT id, estudio_id, resultados, correcciones, created_at FROM medicion WHERE estudio_id = %s",
                 (estudio_id,)
             )
 
@@ -38,12 +38,49 @@ class MedicionRepository:
                     "id": row[0],
                     "estudio_id": row[1],
                     "resultados": row[2],
-                    "created_at": row[3].isoformat() if row[3] else None
+                    "correcciones": row[3],
+                    "created_at": row[4].isoformat() if row[4] else None
                 }
             return None
 
         except Exception as e:
             logger.error(f"Error al obtener medicion del estudio {estudio_id}: {e}")
+            raise
+
+        finally:
+            if connection:
+                self.database_service.return_connection(connection)
+
+    def save_correcciones(self, estudio_id: int, correcciones: dict) -> None:
+        """
+        Guarda o reemplaza las correcciones manuales de un estudio.
+
+        Args:
+            estudio_id: ID del estudio
+            correcciones: Dict con los valores corregidos (misma estructura que resultados)
+        """
+        import json
+        connection = None
+        try:
+            connection = self.database_service.get_connection()
+            cursor = connection.cursor()
+
+            cursor.execute(
+                "UPDATE medicion SET correcciones = %s WHERE estudio_id = %s",
+                (json.dumps(correcciones), estudio_id)
+            )
+
+            if cursor.rowcount == 0:
+                raise ValueError(f"No existe medicion para el estudio {estudio_id}")
+
+            connection.commit()
+            cursor.close()
+            logger.info(f"Correcciones guardadas para estudio {estudio_id}")
+
+        except Exception as e:
+            if connection:
+                connection.rollback()
+            logger.error(f"Error al guardar correcciones del estudio {estudio_id}: {e}")
             raise
 
         finally:

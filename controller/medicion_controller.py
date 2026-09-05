@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
+from typing import Any
 from repository.medicion_repository import MedicionRepository
 from service.minio_service import MinioService
 
@@ -40,6 +42,30 @@ async def get_medicion_by_estudio(estudio_id: int):
         raise HTTPException(
             status_code=500,
             detail=f"Error inesperado: {str(e)}"
+        )
+
+
+class CorreccionesPayload(BaseModel):
+    correcciones: dict[str, Any]
+
+
+@router.patch("/{estudio_id}")
+async def save_correcciones(estudio_id: int, payload: CorreccionesPayload):
+    """
+    Guarda o reemplaza las correcciones manuales de los ángulos de un estudio.
+    Las correcciones siguen la misma estructura que 'resultados' pero solo
+    incluyen los campos que el usuario corrigió.
+    """
+    try:
+        medicion_repository.save_correcciones(estudio_id, payload.correcciones)
+        return {"message": f"Correcciones guardadas para estudio {estudio_id}"}
+
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al guardar correcciones: {str(e)}"
         )
 
 
