@@ -84,3 +84,24 @@ class EstudioRepository:
         finally:
             if connection:
                 self.database_service.return_connection(connection)
+
+    def delete(self, estudio_id: int) -> None:
+        """Elimina un estudio y su medición asociada via stored procedure."""
+        connection = None
+        try:
+            connection = self.database_service.get_connection()
+            cursor = connection.cursor()
+            cursor.execute("CALL sp_delete_estudio(%s)", (estudio_id,))
+            connection.commit()
+            cursor.close()
+            logger.info(f"Estudio {estudio_id} eliminado exitosamente")
+
+        except Exception as e:
+            if connection:
+                connection.rollback()
+            logger.error(f"Error al eliminar estudio {estudio_id}: {e}")
+            raise
+
+        finally:
+            if connection:
+                self.database_service.return_connection(connection)

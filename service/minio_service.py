@@ -33,6 +33,11 @@ class MinioService:
         )
         logger.info(f"Cliente MinIO conectado: {self.endpoint}")
 
+    def eliminar_objeto(self, clave: str) -> None:
+        """Elimina un objeto del bucket de MinIO."""
+        self.client.remove_object(self.bucket, clave)
+        logger.info(f"Objeto eliminado de MinIO: {clave}")
+
     def generar_url_publica(self, clave: str) -> str:
         """Genera una URL pública directa (requiere bucket con acceso anónimo)."""
         scheme = "https" if self.secure else "http"

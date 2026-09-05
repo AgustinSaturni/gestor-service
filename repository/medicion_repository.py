@@ -49,3 +49,35 @@ class MedicionRepository:
         finally:
             if connection:
                 self.database_service.return_connection(connection)
+
+    def get_imagenes_by_estudio_id(self, estudio_id: int) -> list[str]:
+        """
+        Obtiene las claves de imágenes en MinIO de un estudio.
+
+        Returns:
+            Lista de claves (paths) de objetos en MinIO
+        """
+        connection = None
+        try:
+            connection = self.database_service.get_connection()
+            cursor = connection.cursor()
+
+            cursor.execute(
+                "SELECT resultados->'imagenes' FROM medicion WHERE estudio_id = %s",
+                (estudio_id,)
+            )
+
+            row = cursor.fetchone()
+            cursor.close()
+
+            if row and row[0]:
+                return list(row[0].values())
+            return []
+
+        except Exception as e:
+            logger.error(f"Error al obtener imágenes del estudio {estudio_id}: {e}")
+            raise
+
+        finally:
+            if connection:
+                self.database_service.return_connection(connection)

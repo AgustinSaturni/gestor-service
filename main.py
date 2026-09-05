@@ -8,7 +8,7 @@ from repository.paciente_repository import PacienteRepository
 from repository.estudio_repository import EstudioRepository
 from repository.medicion_repository import MedicionRepository
 from controller.serie_controller import router as serie_router, set_rabbitmq_service, set_paciente_repository, set_estudio_repository
-from controller.estudio_controller import router as estudio_router, set_estudio_repository as set_estudio_repository_controller
+from controller.estudio_controller import router as estudio_router, set_estudio_repository as set_estudio_repository_controller, set_medicion_repository_estudio, set_minio_service_estudio
 from controller.medicion_controller import router as medicion_router, set_medicion_repository, set_minio_service
 from controller.pacs_controller import router as pacs_router
 
@@ -48,6 +48,8 @@ async def lifespan(app: FastAPI):
     set_paciente_repository(paciente_repository)
     set_estudio_repository(estudio_repository)
     set_estudio_repository_controller(estudio_repository)
+    set_medicion_repository_estudio(medicion_repository)
+    set_minio_service_estudio(minio_service)
     set_medicion_repository(medicion_repository)
     set_minio_service(minio_service)
 
