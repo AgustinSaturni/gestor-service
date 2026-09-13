@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from typing import Optional
 import requests
 from service.orthanc_service import OrthancService
 
@@ -24,6 +26,83 @@ async def get_series_pacs():
             "total": len(series),
             "series": series
         }
+
+    except requests.exceptions.ConnectionError:
+        raise HTTPException(
+            status_code=503,
+            detail="No se pudo conectar al servidor PACS (Orthanc)"
+        )
+    except requests.exceptions.HTTPError as e:
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=f"Error del servidor PACS: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error inesperado: {str(e)}"
+        )
+
+
+@router.get("/series/{series_id}/instances")
+async def get_series_instances(series_id: str):
+    """
+    Lista las instancias de una serie en orden anatomico, para poder recorrer
+    los cortes en un visor.
+
+    Returns:
+        Diccionario con el total y la lista ordenada de instancias
+    """
+    try:
+        instancias = orthanc_service.get_series_instances(series_id)
+
+        return {
+            "total": len(instancias),
+            "instances": instancias
+        }
+
+    except requests.exceptions.ConnectionError:
+        raise HTTPException(
+            status_code=503,
+            detail="No se pudo conectar al servidor PACS (Orthanc)"
+        )
+    except requests.exceptions.HTTPError as e:
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=f"Error del servidor PACS: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error inesperado: {str(e)}"
+        )
+
+
+@router.get("/instances/{instance_id}/preview")
+async def get_instance_preview(
+    instance_id: str,
+    width: Optional[int] = Query(None, ge=32, le=2048)
+):
+    """
+    Devuelve el corte renderizado como imagen.
+
+    Actua de proxy para que las credenciales de Orthanc no salgan del backend.
+    La respuesta se reenvia por chunks en vez de bufferearse entera.
+
+    Args:
+        instance_id: UUID de la instancia en Orthanc
+        width: Ancho opcional; Orthanc reescala del lado del servidor
+    """
+    try:
+        upstream = orthanc_service.get_instance_preview(instance_id, width)
+
+        return StreamingResponse(
+            upstream.iter_content(chunk_size=65536),
+            media_type=upstream.headers.get("Content-Type", "image/png"),
+            # Una instancia DICOM es inmutable: el navegador puede cachearla y
+            # asi moverse por cortes ya vistos no cuesta una request nueva.
+            headers={"Cache-Control": "public, max-age=86400"}
+        )
 
     except requests.exceptions.ConnectionError:
         raise HTTPException(

@@ -29,6 +29,71 @@ class OrthancService:
         response.raise_for_status()
         return response.json()
 
+    def get_series_instances(self, series_id: str) -> List[Dict[str, Any]]:
+        """
+        Lista las instancias de una serie, ordenadas anatomicamente.
+
+        Orthanc devuelve las instancias sin un orden garantizado, asi que se
+        ordenan por InstanceNumber. Las que no lo tengan caen al final, en el
+        orden que Orthanc les haya asignado.
+
+        Una sola llamada trae los tags de todas las instancias, asi que esto no
+        escala con la cantidad de cortes.
+
+        Args:
+            series_id: UUID de la serie en Orthanc
+
+        Returns:
+            Lista de dicts con id y numero de instancia
+        """
+        instancias = self._get(f"/series/{series_id}/instances")
+
+        def clave_orden(inst: Dict[str, Any]):
+            numero = inst.get("MainDicomTags", {}).get("InstanceNumber")
+            try:
+                return (0, int(numero))
+            except (TypeError, ValueError):
+                return (1, inst.get("IndexInSeries") or 0)
+
+        instancias.sort(key=clave_orden)
+
+        return [
+            {
+                "id": inst.get("ID"),
+                "instance_number": inst.get("MainDicomTags", {}).get("InstanceNumber"),
+            }
+            for inst in instancias
+        ]
+
+    def get_instance_preview(self, instance_id: str, width: Optional[int] = None):
+        """
+        Obtiene el corte renderizado como imagen, sin descargarlo en memoria.
+
+        Devuelve la respuesta de requests en modo stream para que el controller
+        la reenvie por chunks: con cientos de cortes no conviene bufferear cada
+        imagen entera antes de responder.
+
+        Args:
+            instance_id: UUID de la instancia en Orthanc
+            width: Ancho en pixeles para que Orthanc reescale del lado del
+                   servidor. Sin esto devuelve la resolucion original.
+
+        Returns:
+            requests.Response en modo stream
+        """
+        if width:
+            endpoint = f"/instances/{instance_id}/rendered"
+            params = {"width": width}
+        else:
+            endpoint = f"/instances/{instance_id}/preview"
+            params = None
+
+        response = requests.get(
+            f"{self.url}{endpoint}", auth=self.auth, params=params, stream=True
+        )
+        response.raise_for_status()
+        return response
+
     def get_all_studies(self) -> List[str]:
         """
         Obtiene todos los IDs de estudios disponibles en el PACS
