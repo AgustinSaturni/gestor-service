@@ -24,3 +24,6 @@ venv.bak/
 # OS
 .DS_Store
 Thumbs.db
+
+# Configuración local de Claude Code (rutas absolutas por máquina)
+.claude/
