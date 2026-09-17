@@ -115,6 +115,38 @@ class OrthancService:
         """
         return self._get(f"/studies/{study_id}")
 
+    def get_series_origen(self, series_id: str) -> Optional[str]:
+        """
+        Indica si la serie es la adquisicion original o una reconstruccion.
+
+        ImageType es un tag de instancia, no de serie, pero es el mismo en todos
+        los cortes: shared-tags lo resuelve en una llamada en vez de una por
+        corte. Su primer valor es ORIGINAL o DERIVED.
+
+        Importa al elegir que serie analizar: una reconstruccion MPR de la
+        estacion puede venir con cortes vacios que la adquisicion original no
+        tiene, y desde la descripcion no hay forma de distinguirlas.
+
+        Args:
+            series_id: UUID de la serie en Orthanc
+
+        Returns:
+            'Original', 'Derivada', o None si la serie no declara ImageType
+        """
+        try:
+            tags = self._get(f"/series/{series_id}/shared-tags?simplify")
+        except Exception:
+            return None
+        image_type = tags.get("ImageType")
+        if not image_type:
+            return None
+        primero = str(image_type).split("\\")[0].strip().upper()
+        if primero == "ORIGINAL":
+            return "Original"
+        if primero == "DERIVED":
+            return "Derivada"
+        return None
+
     def get_study_series(self, study_id: str) -> List[Dict[str, Any]]:
         """
         Obtiene todas las series de un estudio
@@ -237,7 +269,8 @@ class OrthancService:
                         "series_number": main_tags.get("SeriesNumber", "N/A"),
                         "description": main_tags.get("SeriesDescription", "Sin descripción"),
                         "modality": main_tags.get("Modality", "Desconocida"),
-                        "num_instances": len(series_info.get("Instances", []))
+                        "num_instances": len(series_info.get("Instances", [])),
+                        "origen": self.get_series_origen(series_info.get("ID")),
                     })
 
         return result
