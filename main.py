@@ -26,8 +26,7 @@ minio_service = MinioService(
     endpoint=os.getenv("MINIO_ENDPOINT", "localhost:9000"),
     access_key=os.getenv("MINIO_ACCESS_KEY", "admin"),
     secret_key=os.getenv("MINIO_SECRET_KEY", "admin123"),
-    bucket=os.getenv("MINIO_BUCKET", "hippal"),
-    public_endpoint=os.getenv("MINIO_PUBLIC_ENDPOINT")
+    bucket=os.getenv("MINIO_BUCKET", "hippal")
 )
 
 

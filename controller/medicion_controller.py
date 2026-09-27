@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from minio.error import S3Error
 from pydantic import BaseModel
 from typing import Any
 from repository.medicion_repository import MedicionRepository
@@ -69,15 +71,45 @@ async def update_resultados(estudio_id: int, payload: ResultadosPayload):
 
 
 @router.get("/{estudio_id}/imagen")
-async def get_imagen_url(estudio_id: int, clave: str = Query(..., description="Clave del objeto en MinIO")):
+async def get_imagen(estudio_id: int, clave: str = Query(..., description="Clave del objeto en MinIO")):
     """
-    Genera una URL prefirmada para acceder a una imagen de la medicion.
+    Devuelve la imagen de la medicion.
+
+    Actua de proxy para que MinIO no tenga que ser alcanzable desde el
+    navegador: antes este endpoint devolvia una URL directa al puerto de MinIO,
+    lo que obligaba a publicarlo y a dejar el bucket con acceso anonimo. Ahora
+    el unico puerto publico es este, igual que con Orthanc en pacs_controller.
+
+    La clave se valida contra las imagenes del estudio para que el path param
+    signifique algo: sin eso el endpoint servia cualquier objeto del bucket.
     """
     try:
-        url = minio_service.generar_url_publica(clave)
-        return {"url": url}
+        if clave not in medicion_repository.get_imagenes_by_estudio_id(estudio_id):
+            raise HTTPException(
+                status_code=404,
+                detail=f"La imagen no pertenece al estudio {estudio_id}"
+            )
+
+        chunks, content_type = minio_service.stream_objeto(clave)
+
+        return StreamingResponse(
+            chunks,
+            media_type=content_type,
+            # La imagen de un angulo no cambia una vez generada: las correcciones
+            # manuales solo reescriben puntos y angulos, y las rectas las dibuja
+            # el front encima. private porque son imagenes de un paciente.
+            headers={"Cache-Control": "private, max-age=3600"}
+        )
+
+    except HTTPException:
+        raise
+    except S3Error as e:
+        raise HTTPException(
+            status_code=404 if e.code == "NoSuchKey" else 502,
+            detail=f"Error al leer la imagen de MinIO: {e.code}"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Error al generar URL: {str(e)}"
+            detail=f"Error al obtener la imagen: {str(e)}"
         )
