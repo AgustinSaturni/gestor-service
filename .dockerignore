@@ -1,0 +1,19 @@
+# Un venv del host: binarios compilados para macOS dentro de una imagen Linux,
+# donde no sirven. Las dependencias las instala pip en el Dockerfile.
+.venv/
+venv/
+
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# La historia del repo no tiene nada que hacer en la imagen.
+.git/
+.gitignore
+
+# Config local con rutas absolutas de la maquina; no viaja en una imagen
+# publicada.
+.claude/
+
+.DS_Store
+README.md
