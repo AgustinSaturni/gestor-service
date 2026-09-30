@@ -29,6 +29,40 @@ class OrthancService:
         response.raise_for_status()
         return response.json()
 
+    def _post(self, endpoint: str, payload: Any) -> Any:
+        """
+        Realiza una peticion POST al servidor Orthanc
+
+        Args:
+            endpoint: Ruta del endpoint (sin la URL base)
+            payload: Cuerpo JSON de la peticion
+
+        Returns:
+            La respuesta decodificada
+        """
+        response = requests.post(f"{self.url}{endpoint}", auth=self.auth, json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    @staticmethod
+    def _origen_desde_image_type(image_type: Any) -> Optional[str]:
+        """
+        Traduce el tag ImageType a 'Original' o 'Derivada'.
+
+        Su primer valor es ORIGINAL o DERIVED. Importa al elegir que serie
+        analizar: una reconstruccion MPR de la estacion puede venir con cortes
+        vacios que la adquisicion original no tiene, y desde la descripcion no
+        hay forma de distinguirlas.
+        """
+        if not image_type:
+            return None
+        primero = str(image_type).split("\\")[0].strip().upper()
+        if primero == "ORIGINAL":
+            return "Original"
+        if primero == "DERIVED":
+            return "Derivada"
+        return None
+
     def get_series_instances(self, series_id: str) -> List[Dict[str, Any]]:
         """
         Lista las instancias de una serie, ordenadas anatomicamente.
@@ -137,15 +171,7 @@ class OrthancService:
             tags = self._get(f"/series/{series_id}/shared-tags?simplify")
         except Exception:
             return None
-        image_type = tags.get("ImageType")
-        if not image_type:
-            return None
-        primero = str(image_type).split("\\")[0].strip().upper()
-        if primero == "ORIGINAL":
-            return "Original"
-        if primero == "DERIVED":
-            return "Derivada"
-        return None
+        return self._origen_desde_image_type(tags.get("ImageType"))
 
     def get_study_series(self, study_id: str) -> List[Dict[str, Any]]:
         """
@@ -241,36 +267,42 @@ class OrthancService:
         """
         Obtiene todas las series de un paciente específico usando su PatientID
 
+        Resuelve la busqueda en Orthanc con /tools/find en vez de recorrer el
+        PACS entero. Antes esto pedia la lista completa de estudios, consultaba
+        cada uno para ver de quien era, y por cada serie del paciente hacia otra
+        llamada para el origen: el costo crecia con el tamaño del PACS aunque el
+        paciente tuviera dos series. Con 25 estudios ya tardaba 16-22 segundos;
+        ahora es una sola peticion.
+
         Args:
             patient_id: ID del paciente (PatientID DICOM)
 
         Returns:
             Lista de series del paciente
         """
+        series = self._post("/tools/find", {
+            "Level": "Series",
+            "Query": {"PatientID": patient_id},
+            "Expand": True,
+            # ImageType es un tag de instancia, pero es el mismo en todos los
+            # cortes y Orthanc lo resuelve aca: evita una llamada por serie.
+            "RequestedTags": ["PatientName", "ImageType"],
+        })
+
         result = []
-        studies = self.get_all_studies()
-
-        for study_id in studies:
-            study_info = self.get_study_info(study_id)
-            patient_tags = study_info.get("PatientMainDicomTags", {})
-            current_patient_id = patient_tags.get("PatientID", "")
-            patient_name = patient_tags.get("PatientName", "Desconocido")
-
-            if current_patient_id == patient_id:
-                series_list = self.get_study_series(study_id)
-
-                for series_info in series_list:
-                    main_tags = series_info.get("MainDicomTags", {})
-                    result.append({
-                        "uuid": series_info.get("ID"),
-                        "patient_id": patient_id,
-                        "patient_name": patient_name,
-                        "study_id": study_id,
-                        "series_number": main_tags.get("SeriesNumber", "N/A"),
-                        "description": main_tags.get("SeriesDescription", "Sin descripción"),
-                        "modality": main_tags.get("Modality", "Desconocida"),
-                        "num_instances": len(series_info.get("Instances", [])),
-                        "origen": self.get_series_origen(series_info.get("ID")),
-                    })
+        for series_info in series:
+            main_tags = series_info.get("MainDicomTags", {})
+            requested = series_info.get("RequestedTags", {})
+            result.append({
+                "uuid": series_info.get("ID"),
+                "patient_id": patient_id,
+                "patient_name": requested.get("PatientName", "Desconocido"),
+                "study_id": series_info.get("ParentStudy"),
+                "series_number": main_tags.get("SeriesNumber", "N/A"),
+                "description": main_tags.get("SeriesDescription", "Sin descripción"),
+                "modality": main_tags.get("Modality", "Desconocida"),
+                "num_instances": len(series_info.get("Instances", [])),
+                "origen": self._origen_desde_image_type(requested.get("ImageType")),
+            })
 
         return result
