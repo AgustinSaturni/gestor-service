@@ -12,7 +12,7 @@ orthanc_service = OrthancService()
 
 
 @router.get("/series")
-async def get_series_pacs():
+def get_series_pacs():
     """
     Lista todas las series disponibles en el PACS con sus UUIDs.
 
@@ -45,7 +45,7 @@ async def get_series_pacs():
 
 
 @router.get("/series/{series_id}/instances")
-async def get_series_instances(series_id: str):
+def get_series_instances(series_id: str):
     """
     Lista las instancias de una serie en orden anatomico, para poder recorrer
     los cortes en un visor.
@@ -79,7 +79,7 @@ async def get_series_instances(series_id: str):
 
 
 @router.get("/instances/{instance_id}/preview")
-async def get_instance_preview(
+def get_instance_preview(
     instance_id: str,
     width: Optional[int] = Query(None, ge=32, le=2048)
 ):
@@ -96,8 +96,18 @@ async def get_instance_preview(
     try:
         upstream = orthanc_service.get_instance_preview(instance_id, width)
 
+        def chunks():
+            # El visor precarga cortes vecinos y el navegador aborta los que ya
+            # no necesita. Sin este finally esa conexion con Orthanc quedaba
+            # abierta para siempre (se veian en CLOSE_WAIT) y el servicio
+            # terminaba sin responder a nada.
+            try:
+                yield from upstream.iter_content(chunk_size=65536)
+            finally:
+                upstream.close()
+
         return StreamingResponse(
-            upstream.iter_content(chunk_size=65536),
+            chunks(),
             media_type=upstream.headers.get("Content-Type", "image/png"),
             # Una instancia DICOM es inmutable: el navegador puede cachearla y
             # asi moverse por cortes ya vistos no cuesta una request nueva.
@@ -122,7 +132,7 @@ async def get_instance_preview(
 
 
 @router.get("/patients/search")
-async def search_patients(nombre: str, apellido: str):
+def search_patients(nombre: str, apellido: str):
     """
     Busca pacientes en el PACS que coincidan con nombre y apellido.
     Devuelve una lista de pacientes únicos para que el usuario pueda elegir.
@@ -164,7 +174,7 @@ async def search_patients(nombre: str, apellido: str):
 
 
 @router.get("/patients/{patient_id}/series")
-async def get_patient_series(patient_id: str):
+def get_patient_series(patient_id: str):
     """
     Obtiene todas las series de un paciente específico usando su PatientID.
 
