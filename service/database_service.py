@@ -51,10 +51,43 @@ class DatabaseService:
             self.connection_pool.closeall()
             logger.info("Pool de conexiones PostgreSQL cerrado")
 
+    @staticmethod
+    def _conexion_viva(conexion) -> bool:
+        """
+        Comprueba que la conexion sirva antes de entregarla.
+
+        El pool guarda las conexiones y las reparte, pero no se entera si del
+        otro lado se murieron. Cuando Postgres se reinicia, las que quedaron
+        guardadas siguen en el pool y getconn las devuelve igual: el primer uso
+        falla con "connection already closed" y el servicio queda inutil hasta
+        que se lo reinicia a mano.
+        """
+        if conexion.closed:
+            return False
+        try:
+            conexion.rollback()  # descarta una transaccion que haya quedado cortada
+            with conexion.cursor() as cursor:
+                cursor.execute("SELECT 1")
+            return True
+        except psycopg2.Error:
+            return False
+
     def get_connection(self):
-        """Obtiene una conexión del pool"""
+        """Obtiene una conexión del pool, descartando las que ya no sirven"""
         if not self.connection_pool:
             raise Exception("Pool de conexiones no inicializado")
+
+        for _ in range(self.maxconn + 1):
+            conexion = self.connection_pool.getconn()
+            if self._conexion_viva(conexion):
+                return conexion
+            # close=True la saca del pool; la proxima vuelta getconn abre una nueva
+            logger.warning("Conexión muerta descartada del pool, se abre otra")
+            self.connection_pool.putconn(conexion, close=True)
+
+        # Ninguna servia: el pool entero quedo viejo, se rehace
+        logger.warning("Todas las conexiones del pool estaban muertas, se recrea el pool")
+        self.connect()
         return self.connection_pool.getconn()
 
     def return_connection(self, connection):
